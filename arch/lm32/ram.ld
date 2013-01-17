@@ -31,7 +31,7 @@ GROUP(-lgcc -lc)
 
 MEMORY
 {
-    ram : ORIGIN = 0x00000000, LENGTH = 0x16000
+    ram : ORIGIN = 0x00000000, LENGTH = 0x40000
 }
 
 SECTIONS
@@ -39,29 +39,6 @@ SECTIONS
 
   .boot : { *(.boot) } > ram
    
-  /* Code */
-  .text           :
-  {
-    . = ALIGN(4);
-    _ftext = .;
-    _ftext_rom = LOADADDR(.text);
-    *(.text .stub .text.* .gnu.linkonce.t.*)
-    *(.gnu.warning)
-    KEEP (*(.init))
-    KEEP (*(.fini))
-    /* Constructors and destructors */
-    KEEP (*crtbegin*.o(.ctors))
-    KEEP (*(EXCLUDE_FILE (*crtend*.o ) .ctors))
-    KEEP (*(SORT(.ctors.*)))
-    KEEP (*(.ctors))
-    KEEP (*crtbegin*.o(.dtors))
-    KEEP (*(EXCLUDE_FILE (*crtend*.o ) .dtors))
-    KEEP (*(SORT(.dtors.*)))
-    KEEP (*(.dtors))
-    KEEP (*(.jcr))
-    _etext = .;
-  } > ram =0 
-
   /* Exception handlers */
   .eh_frame_hdr : { *(.eh_frame_hdr) } > ram
   .eh_frame : { KEEP (*(.eh_frame)) } > ram
@@ -109,6 +86,29 @@ SECTIONS
     PROVIDE (end = .);
   } > ram
   
+  /* Code */
+  .text           :
+  {
+    . = ALIGN(4);
+    _ftext = .;
+    _ftext_rom = LOADADDR(.text);
+    *(.text .stub .text.* .gnu.linkonce.t.*)
+    *(.gnu.warning)
+    KEEP (*(.init))
+    KEEP (*(.fini))
+    /* Constructors and destructors */
+    KEEP (*crtbegin*.o(.ctors))
+    KEEP (*(EXCLUDE_FILE (*crtend*.o ) .ctors))
+    KEEP (*(SORT(.ctors.*)))
+    KEEP (*(.ctors))
+    KEEP (*crtbegin*.o(.dtors))
+    KEEP (*(EXCLUDE_FILE (*crtend*.o ) .dtors))
+    KEEP (*(SORT(.dtors.*)))
+    KEEP (*(.dtors))
+    KEEP (*(.jcr))
+    _etext = .;
+  } > ram =0 
+
   /* First location in stack is highest address in RAM */
   PROVIDE(_fstack = ORIGIN(ram) + LENGTH(ram) - 4);
   

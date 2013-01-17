@@ -2,8 +2,8 @@
 BOARD = spec
 
 # 1 enables Etherbone support
-WITH_ETHERBONE=0
-
+WITH_ETHERBONE=1
+FAIR_DATA_MASTER=1
 
 
 
@@ -50,6 +50,8 @@ WITH_ETHERBONE=0
 
 CROSS_COMPILE = lm32-elf-
 
+ARCHIVE = etherbone.a
+
 OBJS_WRC = 	wrc_main.o \
 						wrc_ptp.o \
 						monitor/monitor.o
@@ -59,6 +61,8 @@ PTP_NOPOSIX = ptp-noposix
 INCLUDE_DIRS = -I$(PTP_NOPOSIX)/wrsw_hal -I$(PTP_NOPOSIX)/libptpnetif -I$(PTP_NOPOSIX)/softpll -Iinclude
 
 CFLAGS_EB = -DWITH_ETHERBONE=$(WITH_ETHERBONE)
+
+CFLAGS_FDM = -DFAIR_DATA_MASTER=$(FAIR_DATA_MASTER)
 
 CFLAGS_PTPD  = -ffreestanding -DPTPD_FREESTANDING -DWRPC_EXTRA_SLIM -DPTPD_MSBF -DPTPD_DBG \
 							 -DPTPD_NO_DAEMON -DNEW_SINGLE_WRFSM -DPTPD_TRACE_MASK=0 \
@@ -97,8 +101,8 @@ OBJDUMP=$(CROSS_COMPILE)objdump
 OBJCOPY=$(CROSS_COMPILE)objcopy
 SIZE=$(CROSS_COMPILE)size
 					 
-CFLAGS= $(CFLAGS_PLATFORM) $(CFLAGS_EB) $(CFLAGS_PTPD) $(INCLUDE_DIRS) -ffunction-sections -fdata-sections -Os -Iinclude -include include/trace.h $(PTPD_CFLAGS) -I$(PTP_NOPOSIX)/PTPWRd -I. -Isoftpll
-LDFLAGS= $(LDFLAGS_PLATFORM) -ffunction-sections -fdata-sections -Wl,--gc-sections -Os -Iinclude
+CFLAGS= $(CFLAGS_PLATFORM) $(CFLAGS_EB) $(CFLAGS_FDM) $(CFLAGS_PTPD) $(INCLUDE_DIRS) -ffunction-sections -fdata-sections -Os -Iinclude -include include/trace.h $(PTPD_CFLAGS) -I$(PTP_NOPOSIX)/PTPWRd -I. -Isoftpll
+LDFLAGS= $(LDFLAGS_PLATFORM) $(ARCHIVE) -ffunction-sections -fdata-sections -Wl,--gc-sections -Os -Iinclude
 OBJS=$(OBJS_PLATFORM) $(OBJS_WRC) $(OBJS_PTPD) $(OBJS_SHELL) $(OBJS_TESTS) $(OBJS_LIB) $(OBJS_SOCKITOWM) $(OBJS_SOFTPLL) $(OBJS_DEV)
 OUTPUT=wrc
 REVISION=$(shell git rev-parse HEAD)

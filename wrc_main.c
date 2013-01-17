@@ -1,4 +1,6 @@
 #include <stdio.h>
+
+#include "etherbone.h"
 #include <inttypes.h>
 
 #include <stdarg.h>
@@ -11,7 +13,7 @@
 #include "ptpd.h"
 #include "ptpd_netif.h"
 #include "i2c.h"
-//#include "eeprom.h"
+
 #include "softpll_ng.h"
 #include "onewire.h"
 #include "shell.h"
@@ -27,6 +29,17 @@ int32_t sfp_alpha = -73622176;  //default values if could not read EEPROM
 int32_t sfp_deltaTx = 46407;
 int32_t sfp_deltaRx = 167843;
 uint32_t cal_phase_transition = 2389;
+
+#if FAIR_DATA_MASTER
+const char netaddress[] = "hw/00:22:19:21:fb:07/udp/10.0.0.1/port/60368";
+
+ 
+  eb_socket_t socket;
+  eb_status_t status;
+  eb_device_t device;
+  
+
+#endif
 
 void wrc_initialize()
 {
@@ -66,6 +79,20 @@ void wrc_initialize()
 #if WITH_ETHERBONE
   ipv4_init("wru1");
   arp_init("wru1");
+#endif
+
+#if FAIR_DATA_MASTER
+TRACE_DEV("Setting up ebsocket...\n");
+
+	if ((status = eb_socket_open(EB_ABI_CODE, "wru1", EB_ADDR32|EB_DATA32, &socket)) != EB_OK) {
+    		TRACE_DEV("failed to open Etherbone socket: \n");}
+		else{
+		if ((status = eb_device_open(socket, netaddress, EB_ADDR32|EB_DATA32, 0, &device)) != EB_OK) {
+    			TRACE_DEV("failed to open Etherbone device");
+  		}	
+   	}
+	
+
 #endif
 }
 
@@ -143,12 +170,60 @@ static void ui_update()
 
 }
 
+#if FAIR_DATA_MASTER
+int stop()
+{
+	TRACE_DEV("Callback STOP\n");
+	return 1;
+}
+
+void set_stop()
+{
+	TRACE_DEV("Callback SETSTOP\n");
+}
+
+
+
+static void send_EB_packet()
+{
+    eb_data_t mask;
+    eb_width_t line_width;
+    eb_format_t line_widths;
+    eb_format_t device_support;
+    eb_format_t write_sizes;
+    eb_format_t format;
+    eb_cycle_t cycle;
+
+    eb_data_t data;
+    eb_address_t address;
+	
+
+
+/* Begin the cycle */
+  if ((status = eb_cycle_open(device, 0, &set_stop, &cycle)) != EB_OK) 
+  {
+    TRACE_DEV(" failed to create cycle, status: %d\n", status);
+    return;
+  }
+    
+  
+  eb_cycle_write(cycle, 0x0000000C, EB_DATA32|EB_BIG_ENDIAN, 0xDEADBEEF);	
+  eb_cycle_close_silently(cycle);
+
+  TRACE_DEV("before flush ");
+  eb_device_flush(device);
+  TRACE_DEV("after flush ");	
+}
+#endif
+
+
 int main(void)
 {
   wrc_extra_debug = 1;
   wrc_ui_mode = UI_SHELL_MODE;
 
   wrc_initialize();
+
   shell_init();
 
   wrc_ptp_set_mode(WRC_MODE_SLAVE);
@@ -156,16 +231,19 @@ int main(void)
 
   //try to read and execute init script from EEPROM
   shell_boot_script();
-  
+  needIP = 0;
+  uint8_t send = 1;
+
   for (;;)
   {
-    int l_status = wrc_check_link();
+ 
+  int l_status = wrc_check_link();
 
     switch (l_status)
     {
 #if WITH_ETHERBONE
       case LINK_WENT_UP:
-        needIP = 1;
+        needIP = 0;
         break;
 #endif
         
@@ -174,6 +252,7 @@ int main(void)
 #if WITH_ETHERBONE
         ipv4_poll();
         arp_poll();
+	
 #endif
         break;
 
@@ -186,5 +265,21 @@ int main(void)
     ui_update();
     wrc_ptp_update();
     spll_update_aux_clocks();
+
+#if FAIR_DATA_MASTER
+		
+		if(send) 
+		{
+			TRACE_DEV("Sending EB packet on WRU1...\n");
+
+			send_EB_packet();
+			send = 0;
+			TRACE_DEV("...done\n");
+	
+		}
+		
+
+#endif
+
   }
 }
