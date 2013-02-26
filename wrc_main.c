@@ -31,43 +31,118 @@ int32_t sfp_deltaRx = 167843;
 uint32_t cal_phase_transition = 2389;
 
 #if FAIR_DATA_MASTER
-const char netaddress[] = "hw/00:22:19:21:fb:07/udp/10.0.0.1/port/60368";
+const char netaddress[] = "hw/00:22:19:21:fb:07/udp/10.0.0.1/port/12345";
 
  
   eb_socket_t socket;
   eb_status_t status;
   eb_device_t device;
-  
+  /*
+  bool tx_timing_msg_waiting( const uintptr_t* wr_offs, const uintptr_t* rd_offs)
+  {
+	if( *wr_offs ^ *rd_offs ) return true; //if the pointer offsets differ, there is a message to be sent
+	else return false;	
+
+  }	
+
+  void create_timing_msg_eb_cyc(eb_address_t dest, const void* src, uintptr_t* wr_offs, const uintptr_t* rd_offs, size_t length)
+{
+	
+	TRACE_DEV("entering create_timing_msg_eb_cyc\n");		
+	uint8_t wraparound;
+	size_t space_b4_end;
+
+	uint32_t* src, dest;
+
+	uintptr_t end_offs, masked_end_offs, masked_wr_offs, masked_rd_offs, offs;
+	
+	end_offs 	= (*rd_offs + length) & P_TX_MSK_W_WRAP; //mask it so offset has twice the range of the buffer
+	masked_end_offs = end_offs & P_TX_MSK; 	//
+	masked_wr_offs 	= *wr_offs & P_TX_MSK;	//
+	masked_rd_offs 	= *rd_offs & P_TX_MSK;	//mask to match buffer offset range
+
+	if((end_offs & P_TX_WRAP) ^ (*rd_offs & P_TX_WRAP)) 	wraparound = 1; //if the overflow bits differ, the buffer is wrapped around
+	else 							wraparound = 0;
+	
+	//is enough space available?
+	if( (wraparound && (masked_end_offs < masked_wr_offs)) | (~wraparound && (masked_end_offs > masked_wr_offs)) )
+	{	
+		if(wraparound) // does the transfer wrap around ? 
+		{
+			//yes, do it in two steps			
+			space_b4_end = buf_end - masked_rd_offs; 
+		
+			//call etherbone function with dest and number of words
+			for(offs=0;offs<space_b4_end);offs+=4) 
+			{
+				eb_cycle_write(cycle, (wb_dest + offs), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + masked_rd_offs + offs)) );
+			}
+			for(offs=0;offs<(length-space_b4_end));offs+=4) 
+			{
+				eb_cycle_write(cycle, (wb_dest + offs + space_b4_end), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + offs)) );
+			}
+		}		
+		else // no, do it in one
+		{
+			//call etherbone function
+			for(offs=0;offs<length);offs+=4) 
+			{
+				eb_cycle_write(cycle, (wb_dest + offs), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + masked_rd_offs + offs)) );
+			}
+		}
+		*rd_offs = end_offs;
+		
+	} 
+	
+	
+	TRACE_DEV("leaving create_timing_msg_eb_cyc\n");
+
+}
+*/	
 
 #endif
 
 void wrc_initialize()
 {
   int ret, i;
-  uint8_t mac_addr[6], ds18_id[8] = {0,0,0,0,0,0,0,0};
-  char sfp_pn[17];
-  
-  sdb_find_devices();
-  uart_init();
-  
-  mprintf("WR Core: starting up...\n");
-  
-  timer_init(1);
-  owInit();
-  
-  mac_addr[0] = 0x08;   //
-  mac_addr[1] = 0x00;   // CERN OUI
-  mac_addr[2] = 0x30;   //  
-  mac_addr[3] = 0xDE;   // fallback MAC if get_persistent_mac fails
-  mac_addr[4] = 0xAD;
-  mac_addr[5] = 0x42;
-  
-  own_scanbus(ONEWIRE_PORT);
-  if (get_persistent_mac(ONEWIRE_PORT, mac_addr) == -1) {
-    mprintf("Unable to determine MAC address\n");
-  }
+          uint8_t mac_addr[6];
 
-  TRACE_DEV("Local MAC address: %x:%x:%x:%x:%x:%x\n", mac_addr[0],mac_addr[1],mac_addr[2],mac_addr[3],mac_addr[4],mac_addr[5]);
+ sdb_find_devices();
+uart_init();
+ mprintf("WR Core: starting up...\n");
+timer_init(1);
+owInit();
+mac_addr[0] = 0x08;        //
+mac_addr[1] = 0x00;        // CERN OUI
+mac_addr[2] = 0x30;        //
+
+own_scanbus(ONEWIRE_PORT);
+
+if (get_persistent_mac(ONEWIRE_PORT, mac_addr) == -1) {
+
+mprintf("Unable to determine MAC address\n");
+
+mac_addr[0] = 0x11;        //
+
+mac_addr[1] = 0x22;        //
+
+ mac_addr[2] = 0x33;        // fallback MAC if get_persistent_mac fails
+mac_addr[3] = 0x44;        //
+ mac_addr[4] = 0x55;        //
+mac_addr[5] = 0x66;        //
+
+        }
+TRACE_DEV("Local MAC address: %x:%x:%x:%x:%x:%x\n", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
+
+  /*
+  ip[0] = 10;   
+  ip[1] = 0;   
+  ip[2] = 0;    
+  ip[3] = 100; 
+ */ 
+
+
+ 
 
   ep_init(mac_addr);
   ep_enable(1, 1);
@@ -78,6 +153,7 @@ void wrc_initialize()
   
 #if WITH_ETHERBONE
   ipv4_init("wru1");
+  //setIP(ip);
   arp_init("wru1");
 #endif
 
@@ -183,8 +259,44 @@ void set_stop()
 }
 
 
+/*
+static void send_timing_msgs()
+{
+	uint8_t i;   
 
-static void send_EB_packet()
+    	eb_cycle_t cycle;
+	eb_address_t address = 0x00000000;
+
+	
+	TRACE_DEV("Checking for pending timing msgs...\n");
+
+	
+	//something in the timing msg buffer to send?
+	if(tx_timing_msg_waiting)
+	{
+		// create a new eb cycle
+		if ((status = eb_cycle_open(device, 0, &set_stop, &cycle)) != EB_OK) 
+		{
+		    TRACE_DEV(" failed to create cycle, status: %d\n", status);
+		    return;
+		}
+		//while there are messages, create new records
+	 	while(tx_timing_msg_waiting(wr_offs, rd_offs)) 
+		{
+					create_timing_msg_eb_cyc(address, src, wr_offs, rd_offs, TIMING_MSG_LEN); 
+					TRACE_DEV("Adding msg %d to cycle\n", i);					
+					i++;
+
+		}
+		//close and send the cycle
+		TRACE_DEV("Sending eb packet\n");		
+		eb_cycle_close_silently(cycle);
+		eb_device_flush(device);
+	}
+}
+*/
+
+static void send_EB_Demo_packet()
 {
     eb_data_t mask;
     eb_width_t line_width;
@@ -195,10 +307,20 @@ static void send_EB_packet()
     eb_cycle_t cycle;
 
     eb_data_t data;
-    eb_address_t address;
+    eb_address_t address = 0x00000000;
 	
+    uint32_t  nsec;
+    static uint32_t param=0;
+    uint64_t sec, nTimeStamp, nTimeOffset, ID;
 
+pps_gen_get_time(&sec, &nsec);
+TRACE_DEV("Seconds:\t %x \n nSeconds: %x\n", (uint32_t)sec, nsec);
 
+    nTimeOffset = 1000000;	
+    nTimeStamp 	= (sec * 1000000000) + nsec + nTimeOffset;
+    ID		= 0xD15EA5EDBABECAFE;
+    param++;
+ 
 /* Begin the cycle */
   if ((status = eb_cycle_open(device, 0, &set_stop, &cycle)) != EB_OK) 
   {
@@ -207,20 +329,27 @@ static void send_EB_packet()
   }
     
   
-  eb_cycle_write(cycle, 0x0000000C, EB_DATA32|EB_BIG_ENDIAN, 0xDEADBEEF);	
+  
+
+  eb_cycle_write(cycle, address+0x00, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp>>32));
+  eb_cycle_write(cycle, address+0x04, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp & 0x00000000ffffffff));
+  eb_cycle_write(cycle, address+0x08, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID>>32));
+  eb_cycle_write(cycle, address+0x0C, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID & 0x00000000ffffffff));
+  eb_cycle_write(cycle, address+0x10, EB_DATA32|EB_BIG_ENDIAN, param);
+
   eb_cycle_close_silently(cycle);
 
-  TRACE_DEV("before flush ");
+  //TRACE_DEV("before flush ");
   eb_device_flush(device);
-  TRACE_DEV("after flush ");	
+  //TRACE_DEV("after flush ");	
 }
 #endif
-
 
 int main(void)
 {
   wrc_extra_debug = 1;
-  wrc_ui_mode = UI_SHELL_MODE;
+ 
+wrc_ui_mode = UI_SHELL_MODE;
 
   wrc_initialize();
 
@@ -231,20 +360,19 @@ int main(void)
 
   //try to read and execute init script from EEPROM
   shell_boot_script();
-  needIP = 0;
   uint8_t send = 1;
 
   for (;;)
   {
- 
+
   int l_status = wrc_check_link();
 
     switch (l_status)
     {
 #if WITH_ETHERBONE
       case LINK_WENT_UP:
-        needIP = 0;
-        break;
+        needIP = 1;
+	 break;
 #endif
         
       case LINK_UP:
@@ -268,14 +396,15 @@ int main(void)
 
 #if FAIR_DATA_MASTER
 		
-		if(send) 
+		if(send && !needIP) 
 		{
+			/*			
 			TRACE_DEV("Sending EB packet on WRU1...\n");
 
-			send_EB_packet();
+			send_EB_Demo_packet();
 			send = 0;
 			TRACE_DEV("...done\n");
-	
+			*/
 		}
 		
 
