@@ -31,7 +31,7 @@ int32_t sfp_deltaRx = 167843;
 uint32_t cal_phase_transition = 2389;
 
 #if FAIR_DATA_MASTER
-const char netaddress[] = "hw/00:22:19:21:fb:07/udp/10.0.0.1/port/12345";
+const char netaddress[] = "hw/ff:ff:ff:ff:ff:ff/udp/192.168.191.7/port/60368";
 
  
   eb_socket_t socket;
@@ -307,7 +307,7 @@ static void send_EB_Demo_packet()
     eb_cycle_t cycle;
 
     eb_data_t data;
-    eb_address_t address = 0x00000000;
+    eb_address_t address = 0x100c00;
 	
     uint32_t  nsec;
     static uint32_t param=0;
@@ -398,13 +398,13 @@ wrc_ui_mode = UI_SHELL_MODE;
 		
 		if(send && !needIP) 
 		{
-			/*			
+					
 			TRACE_DEV("Sending EB packet on WRU1...\n");
 
 			send_EB_Demo_packet();
 			send = 0;
 			TRACE_DEV("...done\n");
-			*/
+			
 		}
 		
 
