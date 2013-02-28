@@ -37,68 +37,10 @@ const char netaddress[] = "hw/ff:ff:ff:ff:ff:ff/udp/192.168.191.7/port/60368";
   eb_socket_t socket;
   eb_status_t status;
   eb_device_t device;
-  /*
-  bool tx_timing_msg_waiting( const uintptr_t* wr_offs, const uintptr_t* rd_offs)
-  {
-	if( *wr_offs ^ *rd_offs ) return true; //if the pointer offsets differ, there is a message to be sent
-	else return false;	
 
-  }	
 
-  void create_timing_msg_eb_cyc(eb_address_t dest, const void* src, uintptr_t* wr_offs, const uintptr_t* rd_offs, size_t length)
-{
-	
-	TRACE_DEV("entering create_timing_msg_eb_cyc\n");		
-	uint8_t wraparound;
-	size_t space_b4_end;
 
-	uint32_t* src, dest;
-
-	uintptr_t end_offs, masked_end_offs, masked_wr_offs, masked_rd_offs, offs;
-	
-	end_offs 	= (*rd_offs + length) & P_TX_MSK_W_WRAP; //mask it so offset has twice the range of the buffer
-	masked_end_offs = end_offs & P_TX_MSK; 	//
-	masked_wr_offs 	= *wr_offs & P_TX_MSK;	//
-	masked_rd_offs 	= *rd_offs & P_TX_MSK;	//mask to match buffer offset range
-
-	if((end_offs & P_TX_WRAP) ^ (*rd_offs & P_TX_WRAP)) 	wraparound = 1; //if the overflow bits differ, the buffer is wrapped around
-	else 							wraparound = 0;
-	
-	//is enough space available?
-	if( (wraparound && (masked_end_offs < masked_wr_offs)) | (~wraparound && (masked_end_offs > masked_wr_offs)) )
-	{	
-		if(wraparound) // does the transfer wrap around ? 
-		{
-			//yes, do it in two steps			
-			space_b4_end = buf_end - masked_rd_offs; 
-		
-			//call etherbone function with dest and number of words
-			for(offs=0;offs<space_b4_end);offs+=4) 
-			{
-				eb_cycle_write(cycle, (wb_dest + offs), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + masked_rd_offs + offs)) );
-			}
-			for(offs=0;offs<(length-space_b4_end));offs+=4) 
-			{
-				eb_cycle_write(cycle, (wb_dest + offs + space_b4_end), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + offs)) );
-			}
-		}		
-		else // no, do it in one
-		{
-			//call etherbone function
-			for(offs=0;offs<length);offs+=4) 
-			{
-				eb_cycle_write(cycle, (wb_dest + offs), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + masked_rd_offs + offs)) );
-			}
-		}
-		*rd_offs = end_offs;
-		
-	} 
-	
-	
-	TRACE_DEV("leaving create_timing_msg_eb_cyc\n");
-
-}
-*/	
+ 
 
 #endif
 
@@ -258,21 +200,99 @@ void set_stop()
 	TRACE_DEV("Callback SETSTOP\n");
 }
 
+/*
+const uintptr_t P_TX_MSK_W_WRAP = 0x0000001F;
+const uintptr_t P_TX_MSK 	= 0x0000000F;
+const uintptr_t P_TX_WRAP 	= 0x00000010;
+
+const uintptr_t BUF_CAPACITY 	= P_TX_MSK;
+
+const uint8_t BUF_OK	= 1;
+const uint8_t BUF_FULL	= 0;
+
+uintptr_t* wr_offs;
+uintptr_t* rd_offs;
+uint32_t* tx_buffer;
+
+const uint32_t TIMING_MSG_LEN = 5;
+*/
 
 /*
-static void send_timing_msgs()
+uintptr_t tx_timing_msg_waiting()
+{
+	return (*wr_offs ^ *rd_offs);
+
+}
+*/
+/*
+ void create_timing_msg_eb_cyc(eb_cycle_t* cycle, eb_address_t wb_dest, const void* src, uintptr_t* wr_offs, const uintptr_t* rd_offs)
+{
+	
+	TRACE_DEV("entering create_timing_msg_eb_cyc\n");		
+	uint8_t wraparound;
+	size_t space_b4_end;
+
+	size_t length = TIMING_MSG_LEN<<2;
+
+
+	uintptr_t end_offs, masked_end_offs, masked_wr_offs, masked_rd_offs, offs;
+	
+	end_offs 	= (*rd_offs + length) & P_TX_MSK_W_WRAP; //mask it so offset has twice the range of the buffer
+	masked_end_offs = end_offs & P_TX_MSK; 	//
+	masked_wr_offs 	= *wr_offs & P_TX_MSK;	//
+	masked_rd_offs 	= *rd_offs & P_TX_MSK;	//mask to match buffer offset range
+
+	if((end_offs & P_TX_WRAP) ^ (*rd_offs & P_TX_WRAP)) 	wraparound = 1; //if the overflow bits differ, the buffer is wrapped around
+	else 							wraparound = 0;
+	
+	//is enough space available?
+	if( (wraparound && (masked_end_offs < masked_wr_offs)) | (~wraparound && (masked_end_offs > masked_wr_offs)) )
+	{	
+		if(wraparound) // does the transfer wrap around ? 
+		{
+			//yes, do it in two steps			
+			space_b4_end = buf_end - masked_rd_offs; 
+		
+			//call etherbone function with dest and number of words
+			for(offs=0;offs<space_b4_end);offs+=4;) 
+			{
+				eb_cycle_write(cycle, (wb_dest + offs), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + masked_rd_offs + offs)) );
+			}
+			for(offs=0;offs<(length-space_b4_end));offs+=4) 
+			{
+				eb_cycle_write(cycle, (wb_dest + offs + space_b4_end), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + offs)) );
+			}
+		}		
+		else // no, do it in one
+		{
+			//call etherbone function
+			for(offs=0;offs<length);offs+=4;) 
+			{
+				eb_cycle_write(cycle, (wb_dest + offs), EB_DATA32|EB_BIG_ENDIAN, *((uint32*)(src + masked_rd_offs + offs)) );
+			}
+		}
+		*rd_offs = end_offs;
+		
+	} 
+	
+	
+	TRACE_DEV("leaving create_timing_msg_eb_cyc\n");
+
+}
+*/
+/*
+static void send_timing_msgs(eb_address_t eca_address,  const void* src, uintptr_t* wr_offs, const uintptr_t* rd_offs )
 {
 	uint8_t i;   
 
     	eb_cycle_t cycle;
-	eb_address_t address = 0x00000000;
 
 	
 	TRACE_DEV("Checking for pending timing msgs...\n");
 
 	
 	//something in the timing msg buffer to send?
-	if(tx_timing_msg_waiting)
+	if(tx_timing_msg_waiting())
 	{
 		// create a new eb cycle
 		if ((status = eb_cycle_open(device, 0, &set_stop, &cycle)) != EB_OK) 
@@ -281,9 +301,9 @@ static void send_timing_msgs()
 		    return;
 		}
 		//while there are messages, create new records
-	 	while(tx_timing_msg_waiting(wr_offs, rd_offs)) 
+	 	while(tx_timing_msg_waiting()) 
 		{
-					create_timing_msg_eb_cyc(address, src, wr_offs, rd_offs, TIMING_MSG_LEN); 
+					create_timing_msg_eb_cyc(&cycle, eca_address, tx_buffer, wr_offs, rd_offs); 
 					TRACE_DEV("Adding msg %d to cycle\n", i);					
 					i++;
 
@@ -399,10 +419,14 @@ wrc_ui_mode = UI_SHELL_MODE;
 		if(send && !needIP) 
 		{
 					
+			uint32_t j;			
+			for (j = 0; j < 125000000/8; ++j) {
+        			asm("# noop"); /* no-op the compiler can't optimize away */
+      			}			
 			TRACE_DEV("Sending EB packet on WRU1...\n");
 
 			send_EB_Demo_packet();
-			send = 0;
+			//send = 0;
 			TRACE_DEV("...done\n");
 			
 		}
