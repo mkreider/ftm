@@ -14,6 +14,7 @@
 #include "softpll_ng.h"
 #include "shell.h"
 #include "onewire.h"
+#include "syscon.h"
 #include "endpoint.h"
 #include "../lib/ipv4.h"
 

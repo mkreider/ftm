@@ -5,6 +5,7 @@
  * Copyright (C) 2012 GSI (www.gsi.de)
  * Author: Grzegorz Daniluk <grzegorz.daniluk@cern.ch>
  * Author: Wesley W. Terpstra <w.terpstra@gsi.de>
+ * Author: Cesar Prados <c.prados@gsi.de>
  *
  * Released according to the GNU GPL, version 2 or any later version.
  */
@@ -15,10 +16,14 @@
 #include "../sockitowm/findtype.h"
 #include "../sockitowm/eep43.h"
 #include "../sockitowm/temp28.h"
+#include "../sockitowm/temp42.h"
 
 #define DEBUG_PMAC 0
 
 uint8_t FamilySN[MAX_DEV1WIRE][8];
+uint8_t gsi_rom[8];
+uint8_t temp_28[8];
+uint8_t temp_42[8];
 uint8_t devsnum;
 uint8_t found_msk;
 
@@ -27,11 +32,22 @@ void own_scanbus(uint8_t portnum)
 	// Find the device(s)
 	found_msk = 0;
 	devsnum = 0;
-	devsnum += FindDevices(portnum, &FamilySN[devsnum], 0x28, MAX_DEV1WIRE - devsnum);	/* Temperature 28 sensor (SPEC) */
-	if (devsnum > 0)
+   if(FindDevices(portnum, &FamilySN[devsnum], TEMP_28, MAX_DEV1WIRE - devsnum))	/* 1-wire Temperature 28 sensor */
+   {
 		found_msk |= FOUND_DS18B20;
-	devsnum += FindDevices(portnum, &FamilySN[devsnum], 0x42, MAX_DEV1WIRE - devsnum);	/* Temperature 42 sensor (SCU) */
-	devsnum += FindDevices(portnum, &FamilySN[devsnum], 0x43, MAX_DEV1WIRE - devsnum);	/* EEPROM */
+      memcpy(temp_28,FamilySN[devsnum],8);
+      devsnum++;
+
+   }
+   if(FindDevices(portnum, &FamilySN[devsnum], TEMP_42, MAX_DEV1WIRE - devsnum))	/* 1-wire Temperature 42 sensor */
+   {
+		found_msk |= FOUND_DS28AE;
+      memcpy(temp_42,FamilySN[devsnum],8);
+      devsnum++;
+   }
+   if(FindDevices(portnum, &FamilySN[devsnum], ROM_43, MAX_DEV1WIRE - devsnum))	/* EEPROM */
+      memcpy(gsi_rom,FamilySN[devsnum],8);
+
 #if DEBUG_PMAC
 	mprintf("Found %d onewire devices\n", devsnum);
 #endif
@@ -39,16 +55,30 @@ void own_scanbus(uint8_t portnum)
 
 int16_t own_readtemp(uint8_t portnum, int16_t * temp, int16_t * t_frac)
 {
-	if (!(found_msk & FOUND_DS18B20))
-		return -1;
-	if (ReadTemperature28(portnum, FamilySN[0], temp)) {
-		*t_frac =
-		    5000 * (! !(*temp & 0x08)) + 2500 * (! !(*temp & 0x04)) +
-		    1250 * (! !(*temp & 0x02)) + 625 * (! !(*temp & 0x01));
-		*t_frac = *t_frac / 100 + (*t_frac % 100) / 50;
-		*temp >>= 4;
-		return 0;
-	}
+   int32_t temp_tmp=0, t_frac_tmp=0;
+
+	if(found_msk & FOUND_DS18B20)
+   {
+	   if (ReadTemperature28(portnum, temp_28, temp))
+      {
+		   *t_frac =
+		      5000 * (! !(*temp & 0x08)) + 2500 * (! !(*temp & 0x04)) +
+		      1250 * (! !(*temp & 0x02)) + 625 * (! !(*temp & 0x01));
+		   *t_frac = *t_frac / 100 + (*t_frac % 100) / 50;
+		   *temp >>= 4;
+		   return 0;
+	   }
+   }
+   else if(found_msk & FOUND_DS28AE)
+   {
+      if(ReadTemperature42(portnum, temp_42, &temp_tmp, &t_frac_tmp))
+      {
+         *temp = temp_tmp;
+         *t_frac = t_frac_tmp;
+         return 0;
+      }
+   }
+
 	return -1;
 }
 

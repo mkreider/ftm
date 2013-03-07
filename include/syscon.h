@@ -25,6 +25,7 @@ struct SYSCON_WB {
 
 #define WRPC_FMC_I2C  0
 #define WRPC_SFP_I2C  1
+#define ONEWIRE_PORT  0
 
 struct s_i2c_if {
 	uint32_t scl;

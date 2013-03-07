@@ -13,6 +13,7 @@ unsigned char *BASE_ONEWIRE;
 unsigned char *BASE_ETHERBONE_CFG;
 
 #define FMC_EEPROM_ADR 0x50
+#define GSI_EEPROM     0x43
 
 void sdb_find_devices(void);
 void sdb_print_devices(void);
