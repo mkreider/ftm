@@ -51,8 +51,8 @@ uint8_t ReadTemperature28(uint8_t portnum, uint8_t * SerialNum, int16_t * Temp)
 	uint8_t rt = FALSE;
 	uint8_t send_block[30], lastcrc8 = 0;
 	int send_cnt, tsht, i;
-	static int power = -1;
-	static uint8_t toggle = 0;
+	static int power = 1;
+	static uint8_t toggle = 1;
 
 	// set the device serial number to the counter device
 	owSerialNum(portnum, SerialNum, FALSE);
@@ -66,6 +66,7 @@ uint8_t ReadTemperature28(uint8_t portnum, uint8_t * SerialNum, int16_t * Temp)
 		}
 	}
 
+   owLevel(portnum, MODE_NORMAL);
 	if (toggle) {
 		if (owAccess(portnum)) {
 			// turn off the 1-Wire Net strong pull-up

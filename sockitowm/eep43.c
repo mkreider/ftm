@@ -7,9 +7,12 @@
 #define READ_MEM_CMD 0xf0
 #define E_READ_MEM_CMD 0xa5
 
-//#define DEBUG_EEP43 1
+#define LSB_ADDR(X) (X & 0xFF)
+#define MSB_ADDR(X) ((X & 0xFF00)>>8)
 
-static int Copy2Mem43(int portnum, uchar * SerialNum);
+#define DEBUG_EEP43 0
+
+static int Copy2Mem43(int portnum, uchar * SerialNum, int page);
 
 int Write43(int portnum, uchar * SerialNum, int page, uchar * page_buffer)
 {
@@ -29,20 +32,21 @@ int Write43(int portnum, uchar * SerialNum, int page, uchar * page_buffer)
 		docrc16(portnum, (ushort) WRITE_SCRATCH_CMD);
 
 		owLevel(portnum, MODE_NORMAL);
-		owWriteBytePower(portnum, 0x00);	//write LSB of target addr
-		docrc16(portnum, (ushort) 0x00);
+		owWriteBytePower(portnum, LSB_ADDR(page));	//read LSB of target addr
+		docrc16(portnum, (ushort) LSB_ADDR(page));
+
 		owLevel(portnum, MODE_NORMAL);
-		owWriteBytePower(portnum, 0x00);	//write MSB of target addr
-		docrc16(portnum, (ushort) 0x00);
+		owWriteBytePower(portnum, MSB_ADDR(page));	//read MSB of target addr
+		docrc16(portnum, (ushort) MSB_ADDR(page));
 
 		for (i = 0; i < 32; i++)	//write 32 data bytes to scratchpad
 		{
 			owLevel(portnum, MODE_NORMAL);
 			owWriteBytePower(portnum, page_buffer[i]);
 			lastcrc16 = docrc16(portnum, page_buffer[i]);
-//                      mprintf(" CRC16: %x\n", lastcrc16);
-
+			//mprintf(" CRC16: %x\n", lastcrc16);
 		}
+
 		for (i = 0; i < 2; i++)	//read two bytes CRC16
 		{
 			owLevel(portnum, MODE_NORMAL);
@@ -55,7 +59,7 @@ int Write43(int portnum, uchar * SerialNum, int page, uchar * page_buffer)
 		if (lastcrc16 == 0xb001) {
 			//copy to mem
 			owLevel(portnum, MODE_NORMAL);
-			if (Copy2Mem43(portnum, SerialNum))
+			if (Copy2Mem43(portnum, SerialNum, page))
 				rt = TRUE;
 
 		}
@@ -65,7 +69,7 @@ int Write43(int portnum, uchar * SerialNum, int page, uchar * page_buffer)
 	return rt;
 }
 
-static int Copy2Mem43(int portnum, uchar * SerialNum)
+static int Copy2Mem43(int portnum, uchar * SerialNum, int page)
 {
 	uchar rt = FALSE;
 	uchar read_data;
@@ -76,9 +80,9 @@ static int Copy2Mem43(int portnum, uchar * SerialNum)
 		if (!owWriteBytePower(portnum, COPY_SCRATCH_CMD))
 			return FALSE;
 		owLevel(portnum, MODE_NORMAL);
-		owWriteBytePower(portnum, 0x00);	//write LSB of target addr
+		owWriteBytePower(portnum, LSB_ADDR(page));	//write LSB of target addr
 		owLevel(portnum, MODE_NORMAL);
-		owWriteBytePower(portnum, 0x00);	//write MSB of target addr
+		owWriteBytePower(portnum, MSB_ADDR(page));	//write MSB of target addr
 		owLevel(portnum, MODE_NORMAL);
 		owWriteBytePower(portnum, 0x1f);	//write E/S
 
@@ -177,11 +181,12 @@ int ReadMem43(int portnum, uchar * SerialNum, int page, uchar * page_buffer)
 		docrc16(portnum, (ushort) E_READ_MEM_CMD);
 
 		owLevel(portnum, MODE_NORMAL);
-		owWriteBytePower(portnum, 0x00);	//write LSB of target addr
-		docrc16(portnum, (ushort) 0x00);
+		owWriteBytePower(portnum, LSB_ADDR(page));	//read LSB of target addr
+		docrc16(portnum, (ushort) LSB_ADDR(page));
+
 		owLevel(portnum, MODE_NORMAL);
-		owWriteBytePower(portnum, 0x00);	//write MSB of target addr
-		docrc16(portnum, (ushort) 0x00);
+		owWriteBytePower(portnum, MSB_ADDR(page));	//read MSB of target addr
+		docrc16(portnum, (ushort) MSB_ADDR(page));
 
 		for (i = 0; i < 32; i++) {
 			owLevel(portnum, MODE_NORMAL);

@@ -74,8 +74,8 @@ int ReadTemperature42(int portnum, uchar * SerialNum, int *Temp, int *frac)
 			if (!owWriteByte(portnum, 0x44))
 				return FALSE;
 			// }
-			// sleep for 1 second
-			msDelay(1000);
+			// sleep for 1 millisecond (usleep is wrong by *10)
+			usleep(10000);
 			// turn off the 1-Wire Net strong pull-up
 			if (power) {
 				if (owLevel(portnum, MODE_NORMAL) !=
