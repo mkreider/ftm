@@ -136,4 +136,24 @@ config DETERMINISTIC_BINARY
 
 	 If in doubt, say No.
 
+choice
+       prompt "EEPROM bus interface"
+       default EEPROM
+       help
+         Network information (mac address) and WRPTP (calibration and script)
+         is stored in the EEPROM memory. This memory can accessed using i2C or
+         oneWire bus protocol.
 
+config EEPROM
+   boolean i2c
+   help
+     Network information (mac address) and WRPTP (calibration and script)
+     is stored in the EEPROM memory. This memory is accessed using i2c bus protocol.
+
+config EEPROM_OW
+   boolean oneWire
+   help
+     Network information (mac address) and WRPTP (calibration and script)
+     is stored in the EEPROM memory. This memory is accessed using oneWire bus protocol.
+
+endchoice

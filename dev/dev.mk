@@ -1,5 +1,6 @@
 obj-y += \
 	dev/eeprom.o \
+	dev/eeprom_ow.o \
 	dev/endpoint.o \
 	dev/ep_pfilter.o \
 	dev/i2c.o \
