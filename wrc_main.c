@@ -31,7 +31,7 @@ int32_t sfp_deltaRx = 167843;
 uint32_t cal_phase_transition = 2389;
 
 #if FAIR_DATA_MASTER
-const char netaddress[] = "hw/ff:ff:ff:ff:ff:ff/udp/192.168.191.7/port/60368";
+const char netaddress[] = "hw/ff:ff:ff:ff:ff:ff/udp/192.168.191.255/port/60368";
 
  
   eb_socket_t socket;
@@ -328,19 +328,28 @@ static void send_EB_Demo_packet()
 
     eb_data_t data;
     eb_address_t address = 0x100c00;
-	
-    uint32_t  nsec;
+
+    uint32_t nsec;	
+    static uint64_t last_sec;
     static uint32_t param=0;
     uint64_t sec, nTimeStamp, nTimeOffset, ID;
 
 pps_gen_get_time(&sec, &nsec);
+if( last_sec == sec) return;
+ last_sec = sec;
+
 TRACE_DEV("Seconds:\t %x \n nSeconds: %x\n", (uint32_t)sec, nsec);
 
     nTimeOffset = 1000000;	
-    nTimeStamp 	= (sec * 1000000000) + nsec + nTimeOffset;
+    nTimeStamp 	= sec & 0xFFFFFFFFFFULL;
+    nTimeStamp  *= (1000000000/8);
+    nTimeStamp  += (nsec/8);
+    nTimeStamp  += nTimeOffset;
     ID		= 0xD15EA5EDBABECAFE;
     param++;
- 
+
+    TRACE_DEV("TS: %x %x\n", (uint32_t)(nTimeStamp>>32), (uint32_t)(nTimeStamp)); 
+
 /* Begin the cycle */
   if ((status = eb_cycle_open(device, 0, &set_stop, &cycle)) != EB_OK) 
   {
@@ -351,11 +360,12 @@ TRACE_DEV("Seconds:\t %x \n nSeconds: %x\n", (uint32_t)sec, nsec);
   
   
 
-  eb_cycle_write(cycle, address+0x00, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp>>32));
-  eb_cycle_write(cycle, address+0x04, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp & 0x00000000ffffffff));
-  eb_cycle_write(cycle, address+0x08, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID>>32));
-  eb_cycle_write(cycle, address+0x0C, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID & 0x00000000ffffffff));
-  eb_cycle_write(cycle, address+0x10, EB_DATA32|EB_BIG_ENDIAN, param);
+ 
+  eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID>>32));
+  eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID & 0x00000000ffffffff));
+  eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp>>32));
+  eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp & 0x00000000ffffffff));	  
+  eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, param);
 
   eb_cycle_close_silently(cycle);
 
@@ -418,16 +428,11 @@ wrc_ui_mode = UI_SHELL_MODE;
 		
 		if(send && !needIP) 
 		{
-					
-			uint32_t j;			
-			for (j = 0; j < 125000000/8; ++j) {
-        			asm("# noop"); /* no-op the compiler can't optimize away */
-      			}			
-			TRACE_DEV("Sending EB packet on WRU1...\n");
+			
 
 			send_EB_Demo_packet();
 			//send = 0;
-			TRACE_DEV("...done\n");
+
 			
 		}
 		

@@ -1,12 +1,8 @@
 #ifndef _DISPLAY_H_
 #define _DISPLAY_H_
 
-extern volatile unsigned int* display;
-extern const unsigned int MODE_REG;
-extern const unsigned int RST_REG;
-extern const unsigned int UART_REG;
-extern const unsigned int CHAR_REG;
-extern const unsigned int RAW_REG;
+extern volatile unsigned int * display;
+
 
 extern const char MODE_RAW;
 extern const char MODE_UART;
