@@ -1,8 +1,6 @@
 #
 # Automatically generated make config: don't edit
 #
-CONFIG_RAMSIZE=90112
-CONFIG_STACKSIZE=2048
 CONFIG_MPRINTF=y
 # CONFIG_PP_PRINTF is not set
 CONFIG_ETHERBONE=y

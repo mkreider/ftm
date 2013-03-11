@@ -8,6 +8,8 @@
  * Released according to the GNU GPL, version 2 or any later version.
  */
 #include <stdio.h>
+
+#include "etherbone.h"
 #include <inttypes.h>
 
 #include <stdarg.h>
@@ -31,6 +33,8 @@
 
 #include "wrc_ptp.h"
 
+
+
 int wrc_ui_mode = UI_SHELL_MODE;
 
 ///////////////////////////////////
@@ -39,6 +43,12 @@ int32_t sfp_alpha = 73622176;	//default values if could not read EEPROM
 int32_t sfp_deltaTx = 46407;
 int32_t sfp_deltaRx = 167843;
 uint32_t cal_phase_transition = 2389;
+
+const char netaddress[] = "hw/ff:ff:ff:ff:ff:ff/udp/192.168.191.255/port/60368";
+ 
+eb_socket_t socket;
+eb_status_t status;
+eb_device_t device;
 
 static void wrc_initialize()
 {
@@ -82,6 +92,19 @@ static void wrc_initialize()
 	ipv4_init("wru1");
 	arp_init("wru1");
 #endif
+
+
+
+TRACE_DEV("Setting up ebsocket...\n");
+
+	if ((status = eb_socket_open(EB_ABI_CODE, "wru1", EB_ADDR32|EB_DATA32, &socket)) != EB_OK) {
+    		TRACE_DEV("failed to open Etherbone socket: \n");}
+	else{
+	   if ((status = eb_device_open(socket, netaddress, EB_ADDR32|EB_DATA32, 0, &device)) != EB_OK) {
+     			TRACE_DEV("failed to open Etherbone device");
+   	}	
+   }
+
 }
 
 #define LINK_WENT_UP 1
@@ -160,6 +183,75 @@ static void check_stack(void)
 	}
 }
 
+
+	
+
+int stop()
+{
+	TRACE_DEV("Callback STOP\n");
+	return 1;
+}
+
+void set_stop()
+{
+	TRACE_DEV("Callback SETSTOP\n");
+}
+
+static void send_EB_Demo_packet()
+{
+   eb_data_t mask;
+   eb_width_t line_width;
+   eb_format_t line_widths;
+   eb_format_t device_support;
+   eb_format_t write_sizes;
+   eb_format_t format;
+   eb_cycle_t cycle;
+
+   eb_data_t data;
+   eb_address_t address = 0x100c00;
+   uint32_t nsec;	
+   static uint64_t last_sec;
+   static uint32_t param=0;
+   uint64_t sec, nTimeStamp, nTimeOffset, ID;
+   shw_pps_gen_get_time(&sec, &nsec);
+   if( last_sec == sec) return;
+   last_sec = sec;
+
+   TRACE_DEV("Seconds:\t %x \n nSeconds: %x\n", (uint32_t)sec, nsec);
+
+   nTimeOffset = 1000000;	
+   nTimeStamp 	= sec & 0xFFFFFFFFFFULL;
+   nTimeStamp  *= (1000000000/8);
+   nTimeStamp  += (nsec/8);
+   nTimeStamp  += nTimeOffset;
+   ID		= 0xD15EA5EDBABECAFE;
+   param++;
+
+   TRACE_DEV("TS: %x %x\n", (uint32_t)(nTimeStamp>>32), (uint32_t)(nTimeStamp)); 
+
+   /* Begin the cycle */
+   if ((status = eb_cycle_open(device, 0, &set_stop, &cycle)) != EB_OK) 
+   {
+      TRACE_DEV(" failed to create cycle, status: %d\n", status);
+      return;
+   }
+    
+   eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID>>32));
+   eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(ID & 0x00000000ffffffff));
+   eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp>>32));
+   eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, (uint32_t)(nTimeStamp & 0x00000000ffffffff));	  
+   eb_cycle_write(cycle, address, EB_DATA32|EB_BIG_ENDIAN, param);
+
+   eb_cycle_close_silently(cycle);
+
+   //TRACE_DEV("before flush ");
+   eb_device_flush(device);
+   //TRACE_DEV("after flush ");	
+}
+
+
+
+
 int main(void)
 {
 	wrc_extra_debug = 1;
@@ -203,5 +295,7 @@ int main(void)
 		wrc_ptp_update();
 		spll_update_aux_clocks();
 		check_stack();
+
+      if(!needIP) send_EB_Demo_packet();
 	}
 }

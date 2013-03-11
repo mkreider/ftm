@@ -1,5 +1,5 @@
 deps_config := \
-	/home/mkreider/hdlprojects/bel_projects/ip_cores/wrpc-sw/Kconfig
+	/home/mkreider/hdlprojects/ftm/Kconfig
 
 include/config/auto.conf: \
 	$(deps_config)

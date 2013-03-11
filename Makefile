@@ -21,7 +21,7 @@ PPSI = ppsi
 
 # we miss CONFIG_ARCH_LM32 as we have no other archs by now
 obj-y = arch/lm32/crt0.o arch/lm32/irq.o arch/lm32/debug.o
-LDS = arch/lm32/ram.ld
+LDS = arch/lm32/ram.ld 
 
 obj-y += wrc_main.o
 obj-y += softpll/softpll_ng.o
@@ -84,7 +84,8 @@ obj-$(CONFIG_PPSI) += wrc_ptp_ppsi.o \
 	monitor/monitor_ppsi.o \
 	lib/ppsi-wrappers.o \
 	$(PPSI)/ppsi.o \
-	$(PPSI)/arch-spec/libarch.a
+	$(PPSI)/arch-spec/libarch.a \
+	
 
 CFLAGS_PLATFORM  = -mmultiply-enabled -mbarrel-shift-enabled
 LDFLAGS_PLATFORM = -mmultiply-enabled -mbarrel-shift-enabled \
@@ -127,7 +128,7 @@ $(OUTPUT).elf: $(LDS) $(AUTOCONF) gitmodules $(OUTPUT).o
 	$(SIZE) $@
 
 $(OUTPUT).o: $(OBJS)
-	$(LD) --gc-sections -e _start -r $(OBJS) -o $@
+	$(LD) --gc-sections -e _start -r $(OBJS) ./etherbone.a -o $@
 
 %.bin: %.elf
 	${OBJCOPY} -O binary $^ $@

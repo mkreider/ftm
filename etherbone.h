@@ -29,7 +29,7 @@
 #ifndef ETHERBONE_H
 #define ETHERBONE_H
 
-#define DEBUG_EB 		1
+#define DEBUG_EB 		0
 
 #define EB_PROTOCOL_VERSION	1
 #define EB_ABI_VERSION		0x02	/* incremented on incompatible changes */
