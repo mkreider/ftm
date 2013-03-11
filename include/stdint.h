@@ -1,1 +1,6 @@
-/usr/local/bin/lm32/lm32-elf/include/stdint.h
+#ifndef __STDINT_H__
+#define __STDINT_H__
+
+#include<inttypes.h>
+
+#endif

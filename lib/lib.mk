@@ -1,8 +1,6 @@
-OBJS_LIB= 	lib/mprintf.o \
-						lib/util.o
-						
-ifneq ($(WITH_ETHERBONE), 0)
+obj-$(CONFIG_MPRINTF) += lib/mprintf.o
 
-OBJS_LIB += lib/arp.o lib/icmp.o lib/ipv4.o lib/bootp.o
+obj-y += lib/util.o lib/atoi.o
+obj-y += lib/net.o
 
-endif
+obj-$(CONFIG_ETHERBONE) += lib/arp.o lib/icmp.o lib/ipv4.o lib/bootp.o

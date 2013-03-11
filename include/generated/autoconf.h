@@ -1,8 +1,11 @@
 /*
  * Automatically generated C config: don't edit
- * Fri Nov 30 15:00:33 2012
+ * Mon Mar 11 12:14:36 2013
  */
 #define AUTOCONF_INCLUDED
+#define CONFIG_RAMSIZE 131072
 #define CONFIG_MPRINTF 1
 #define CONFIG_PTP_NOPOSIX 1
 #define CONFIG_ETHERBONE 1
+#define CONFIG_STACKSIZE 2048
+#define CONFIG_EEPROM_OW 1
