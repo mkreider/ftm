@@ -128,7 +128,7 @@ $(OUTPUT).elf: $(LDS) $(AUTOCONF) gitmodules $(OUTPUT).o
 	$(SIZE) $@
 
 $(OUTPUT).o: $(OBJS)
-	$(LD) --gc-sections -e _start -r $(OBJS) ./etherbone.a -o $@
+	$(LD) --gc-sections -e _start -r $(OBJS) ./etherbone.a fesa_if.o -o $@
 
 %.bin: %.elf
 	${OBJCOPY} -O binary $^ $@
