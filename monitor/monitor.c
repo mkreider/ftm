@@ -35,6 +35,8 @@ void wrc_mon_gui(void)
 	int aux_stat;
 	uint64_t sec;
 	uint32_t nsec;
+	int16_t brd_temp;
+	int16_t brd_temp_frac;
 #ifdef CONFIG_ETHERBONE
 	uint8_t ip[4];
 #endif
@@ -53,6 +55,9 @@ void wrc_mon_gui(void)
 
 	cprintf(C_BLUE, "\n\nTAI Time:                  ");
 	cprintf(C_WHITE, "%s", format_time(sec));
+	
+	own_readtemp(ONEWIRE_PORT, &brd_temp, &brd_temp_frac);
+	cprintf((brd_temp>60) ? C_RED : C_GREEN, "     %d.%02d C \n", brd_temp, brd_temp_frac);
 
 	/*show_ports */
 	halexp_get_port_state(&ps, NULL);
