@@ -124,6 +124,11 @@ config ETHERBONE
 	  You need to run a gateware file that includes Etherbone support.
 	  If in doubt, say No.
 
+config FTM
+	boolean "Compile FTM mode"
+	help
+	  Timing Demo
+
 config DETERMINISTIC_BINARY
        boolean "Build a binary that is the same every time"
        help

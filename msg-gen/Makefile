@@ -1,0 +1,12 @@
+CC      := lm32-elf-gcc
+CFLAGS  := -Wall -mmultiply-enabled -mbarrel-shift-enabled -Os -ggdb -ffreestanding
+
+tm-main.bin: tm-main.elf
+	lm32-elf-objcopy -O binary $< $@
+
+tm-main.elf: crt0.o fesa_if.o tm-main.o
+	$(CC) $(CFLAGS) -o $@ -nostdlib -T linker.ld $^
+
+
+clean:
+	rm -f *.o *.elf *.bin

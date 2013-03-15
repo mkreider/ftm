@@ -23,7 +23,10 @@ PPSI = ppsi
 obj-y = arch/lm32/crt0.o arch/lm32/irq.o arch/lm32/debug.o
 LDS = arch/lm32/ram.ld
 
+ifeq ($(CONFIG_FTM),n)
 obj-y += wrc_main.o
+endif
+
 obj-y += softpll/softpll_ng.o
 
 
@@ -86,6 +89,8 @@ obj-$(CONFIG_PPSI) += wrc_ptp_ppsi.o \
 	$(PPSI)/ppsi.o \
 	$(PPSI)/arch-spec/libarch.a
 
+obj-$(CONFIG_FTM) += wrc_main_ftm.o
+
 CFLAGS_PLATFORM  = -mmultiply-enabled -mbarrel-shift-enabled
 LDFLAGS_PLATFORM = -mmultiply-enabled -mbarrel-shift-enabled \
 	-nostdlib -T $(LDS)
@@ -128,6 +133,9 @@ $(OUTPUT).elf: $(LDS) $(AUTOCONF) gitmodules $(OUTPUT).o
 
 $(OUTPUT).o: $(OBJS)
 	$(LD) --gc-sections -e _start -r $(OBJS) -o $@
+
+lib/etherbone.a: lib/etherbone.a-bak
+	cp $< $@
 
 %.bin: %.elf
 	${OBJCOPY} -O binary $^ $@
