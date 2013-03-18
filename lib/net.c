@@ -261,6 +261,8 @@ int ptpd_netif_select(wr_socket_t * wrSock)
 	return 0;
 }
 
+uint64_t get_current_time();
+int once = 0;
 int ptpd_netif_sendto(wr_socket_t * sock, wr_sockaddr_t * to, void *data,
 		      size_t data_length, wr_timestamp_t * tx_timestamp)
 {
@@ -268,6 +270,8 @@ int ptpd_netif_sendto(wr_socket_t * sock, wr_sockaddr_t * to, void *data,
 	struct hw_timestamp hwts;
 	struct ethhdr hdr;
 	int rval;
+	
+
 
 	memcpy(hdr.dstmac, to->mac, 6);
 	memcpy(hdr.srcmac, s->local_mac, 6);
@@ -283,6 +287,7 @@ int ptpd_netif_sendto(wr_socket_t * sock, wr_sockaddr_t * to, void *data,
 		tx_timestamp->phase = 0;
 		tx_timestamp->correct = hwts.valid;
 	}
+	
 	return rval;
 }
 
