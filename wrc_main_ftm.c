@@ -1,12 +1,4 @@
-/*
- * This work is part of the White Rabbit project
- *
- * Copyright (C) 2011,2012 CERN (www.cern.ch)
- * Author: Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
- * Author: Grzegorz Daniluk <grzegorz.daniluk@cern.ch>
- *
- * Released according to the GNU GPL, version 2 or any later version.
- */
+
 #include <stdio.h>
 
 #include "lib/etherbone.h"
@@ -33,6 +25,73 @@
 
 #include "wrc_ptp.h"
 #include "lib/fesa_if.h"
+#include "ptpd_exports.h"
+
+#include "ptpd.h"
+
+extern ptpdexp_sync_state_t cur_servo_state;
+
+
+extern unsigned int* _startshared[];
+extern unsigned int* _endshared[];
+
+volatile unsigned int* fesa_if = _startshared;
+
+
+volatile uint32_t* tx_ctrl 	= (uint32_t*)0x100400;
+volatile uint32_t* tx_buffer = (uint32_t*)0x100400;
+
+
+  const char c_running[4] = {'|', '/', '-', '\\'};
+
+   void progress_wheel()
+   {
+      static uint8_t index = 0;
+
+      TRACE_DEV("\r%c", c_running[index & 0x03]);
+      index++;
+
+   }
+
+
+void crappy_printu64(uint64_t output)
+{
+   
+   uint64_t div = 1000000000000000000;
+   uint32_t res;
+   uint8_t leadingzeros = 1;
+
+   while(div > 0) 
+   {
+      
+      
+      res = (uint32_t)(output / div);
+
+      output %= div;
+      div /= 10;
+      if(res) leadingzeros = 0;        
+      if(!leadingzeros) TRACE_DEV("%d", res);
+
+   }
+}
+
+
+#define SECOND          UINT64_C(1000000000)
+
+
+#define REG_P_TX_WR 	   0
+#define REG_P_TX_RD 	   (REG_P_TX_WR+4)
+
+#define BUF_SIZE        0x000000400
+#define P_TX_MSK 	      (BUF_SIZE-1)
+#define P_TX_WRAP 	   BUF_SIZE
+#define P_TX_MSK_WRAP 	(P_TX_MSK | P_TX_WRAP)
+
+const uint8_t BUF_OK	= 1;
+const uint8_t BUF_FULL	= 0;
+
+typedef uintptr_t size_t; 
+
 
 int wrc_ui_mode = UI_SHELL_MODE;
 
@@ -175,7 +234,7 @@ uint64_t get_current_time()
    shw_pps_gen_get_time(&sec, &nsec);
    
    nTimeStamp 	= sec & 0xFFFFFFFFFFULL;
-   nTimeStamp  *= (1000000000);
+   nTimeStamp  *= SECOND;
    nTimeStamp  += (nsec);
 
    return nTimeStamp;
@@ -252,7 +311,7 @@ static void send_EB_Demo_packet()
 
    nTimeOffset = 1000000;	
    nTimeStamp 	= sec & 0xFFFFFFFFFFULL;
-   nTimeStamp  *= (1000000000/8);
+   nTimeStamp  *= (SECOND/8);
    nTimeStamp  += (nsec/8);
    nTimeStamp  += nTimeOffset;
    ID		= 0xD15EA5EDBABECAFE;
@@ -332,23 +391,6 @@ void send_eb_msg()
 }
 
 
-
-volatile unsigned int* fesa_if = (unsigned int*)0x200000; 
-volatile uint32_t* tx_ctrl 	= (uint32_t*)0x100400;
-volatile uint32_t* tx_buffer = (uint32_t*)0x100400;
-
-#define REG_P_TX_WR 	   0
-#define REG_P_TX_RD 	   (REG_P_TX_WR+4)
-
-#define BUF_SIZE        0x000000400
-#define P_TX_MSK 	      (BUF_SIZE-1)
-#define P_TX_WRAP 	   BUF_SIZE
-#define P_TX_MSK_WRAP 	(P_TX_MSK | P_TX_WRAP)
-
-const uint8_t BUF_OK	= 1;
-const uint8_t BUF_FULL	= 0;
-
-typedef uintptr_t size_t; 
 
 
 
@@ -430,15 +472,23 @@ uint8_t acc_cycle( uintptr_t* tx_ctrl, uint32_t* tx_buffer)
    cmd = fesa_get(REG_CMD);
    if(cmd)
    {
-	   //start/stop the cycle
-	   if(cmd & (CMD_CYC_STOP | CMD_CYC_STOP_I)) 	{fesa_clr_bit(p_offs + REG_STAT, STAT_CYC_ACTIVE);}
-	   else if(cmd & (CMD_CYC_START))			      {fesa_set_bit(p_offs + REG_STAT, STAT_CYC_ACTIVE);}
 
-	   //do pageswap on request...
-      if(cmd & CMD_CYC_PAGESWAP) {p_offs ^= ADR_OFFS_PAGE_B; fesa_set(REG_MEMPAGE, p_offs);}
       
-      if(cmd & CMD_MSG_USE)        {fesa_set_bit(p_offs + REG_STAT, cmd & STAT_MSGS);}    
-      else if (cmd & CMD_MSG_CLR)  {fesa_clr_bit(p_offs + REG_STAT, cmd & STAT_MSGS);}          
+	   //do pageswap on request...
+      if(cmd & CMD_CYC_PAGESWAP) 
+      {
+         p_offs ^= ((((uintptr_t)((void*)_endshared))-((uintptr_t)((void*)_startshared))+4)/2); fesa_set(REG_MEMPAGE, p_offs);
+         if(p_offs){  TRACE_DEV("Now Page B, Cyc Exec %x%x\n", 	fesa_get(p_offs + REG_CYC_EXEC_TIME_HI), fesa_get(p_offs + REG_CYC_EXEC_TIME_LO));}
+         else      {  TRACE_DEV("Now Page A, Cyc Exec %x%x\n", 	fesa_get(p_offs + REG_CYC_EXEC_TIME_HI), fesa_get(p_offs + REG_CYC_EXEC_TIME_LO));}
+      }
+      
+      //start/stop the cycle
+	   if(cmd & (CMD_CYC_STOP | CMD_CYC_STOP_I)) 	{fesa_clr_bit(p_offs + REG_STAT, STAT_CYC_ACTIVE); TRACE_DEV("\nStopped\n");}
+	   else if(cmd & (CMD_CYC_START))			      {gerror = 0; error = 0; fesa_set_bit(p_offs + REG_STAT, STAT_CYC_ACTIVE); TRACE_DEV("\nStarted\n");}
+
+      if(cmd & CMD_DBG)        {gerror = 0; error = 0; fesa_set_bit(p_offs + REG_STAT, STAT_DBG); fesa_set_bit(p_offs + REG_STAT, STAT_CYC_ACTIVE);TRACE_DEV("\nDBG started\n");}
+      fesa_set(REG_CMD, 0);	//leave only new changes in the command register
+                 
    }
 
    p_offs = fesa_get(REG_MEMPAGE);
@@ -456,8 +506,26 @@ uint8_t acc_cycle( uintptr_t* tx_ctrl, uint32_t* tx_buffer)
             if( fesa_get(p_offs+REG_CYC_MSG_SENT) < fesa_get(p_offs+REG_NUM_MSGS)) 
             {
                 //get cycle execution time			
-               t_cyc_exec	= (((uint64_t)(fesa_get(p_offs+REG_CYC_EXEC_TIME_HI)) << 32) 	| fesa_get(p_offs+REG_CYC_EXEC_TIME_LO));			
+                t_cyc_exec	= (((uint64_t)(fesa_get(p_offs+REG_CYC_EXEC_TIME_HI)) << 32) 	| fesa_get(p_offs+REG_CYC_EXEC_TIME_LO));		             
+                t_last      = t_now;				   
+                t_now 		= get_current_time();				
 			      
+               if(fesa_get(p_offs+REG_STAT) & STAT_DBG)
+               {
+                  if(t_now > (t_cyc_exec - fesa_get(p_offs+REG_CYC_T_TRANSMIT) + (((uint64_t)(fesa_get(p_offs+REG_CYC_PERIOD_HI)) << 32) + (uint64_t)fesa_get(p_offs+REG_CYC_PERIOD_LO))	) )
+                  {
+                     //TRACE_DEV("now is       %x %x\n", 	(uint32_t)(t_now>>32),	(uint32_t)t_now);                                
+                     //TRACE_DEV("cyc_exec was %x %x\n", 	fesa_get(p_offs + REG_CYC_EXEC_TIME_HI), fesa_get(p_offs + REG_CYC_EXEC_TIME_LO));                           
+                     t_cyc_exec = t_now + fesa_get(p_offs+REG_CYC_T_TRANSMIT) + fesa_get(p_offs+REG_CYC_T_MARGIN);
+                     fesa_set(p_offs+REG_CYC_EXEC_TIME_HI, (uint32_t)(t_cyc_exec>>32));
+			            fesa_set(p_offs+REG_CYC_EXEC_TIME_LO, (uint32_t)t_cyc_exec);
+
+                     //TRACE_DEV("DBG: Had to change cycle start time to %d from now\n", fesa_get(p_offs+REG_CYC_T_TRANSMIT) + fesa_get(p_offs+REG_CYC_T_MARGIN) );
+                     //TRACE_DEV("cyc_exec is now %x %x\n\n", 	fesa_get(p_offs + REG_CYC_EXEC_TIME_HI), fesa_get(p_offs + REG_CYC_EXEC_TIME_LO)); 
+                  }   
+               }  
+  
+
                //
 				   //               t_now
 				   //---------------|--------------------------------------------------------
@@ -472,15 +540,16 @@ uint8_t acc_cycle( uintptr_t* tx_ctrl, uint32_t* tx_buffer)
 				   t_msg_exec	= t_cyc_exec + t_msg_offs;						
 				   t_overdue 	= t_msg_exec - fesa_get(p_offs+REG_CYC_T_TRANSMIT);  			
 				   t_due 		= t_overdue - fesa_get(p_offs+REG_CYC_T_MARGIN);
-               t_last      = t_now;				   
-               t_now 		= get_current_time();	 
+                
 			      
+              
                 cmp2 = get_cycle_count();
 
                if(t_now >= t_due) //time to act yet?
 				   { 
                   if(t_now < t_overdue)	// still enough time ?	
 					   {
+                                        
                      for(j=fesa_get(p_offs+REG_CYC_MSG_SENT); j < fesa_get(p_offs+REG_NUM_MSGS) ; j++)
 		               {
                          cmp3 = get_cycle_count();                       
@@ -511,12 +580,13 @@ uint8_t acc_cycle( uintptr_t* tx_ctrl, uint32_t* tx_buffer)
                      }
                      cmp5 = get_cycle_count();
                      send_eb_msg();
+                     TRACE_DEV("now is       %x %x\n", 	(uint32_t)(t_cyc_exec>>32),	(uint32_t)t_cyc_exec); 
                      cmp6 = get_cycle_count(); 
                      //TRACE_DEV("prep %d loop1 %d allloop %d send %d \n", cmp2-cmp1, cmp4-cmp3, cmp4-cmp2,cmp6-cmp5);
                      fesa_set((p_offs+REG_CYC_MSG_SENT), j);                  
                     	
                   }
-                  else{ gerror = 1; error = 1; TRACE_DEV("n %d j %d prep %d loop1 %d allloop %d send %d \n", fesa_get(p_offs+REG_CYC_MSG_SENT), j, cmp2-cmp1, cmp4-cmp3, cmp4-cmp2,cmp6-cmp5);   }//error, we're too late
+                  else{ gerror = 1; error = 1; TRACE_DEV("m %d n %d j %d prep %d loop1 %d allloop %d send %d \n", fesa_get(p_offs+REG_CYC_CNT), fesa_get(p_offs+REG_CYC_MSG_SENT), j, cmp2-cmp1, cmp4-cmp3, cmp4-cmp2,cmp6-cmp5);   }//error, we're too late
                }
 			   }
             else
@@ -532,13 +602,13 @@ uint8_t acc_cycle( uintptr_t* tx_ctrl, uint32_t* tx_buffer)
 			      fesa_inc(p_offs+REG_CYC_CNT);
                //clr sent message flags			
 			      fesa_set(p_offs+REG_CYC_MSG_SENT, 0);
-               //TRACE_DEV(", new Cyc %d\n", fesa_get(p_offs+REG_CYC_EXEC_TIME_LO));
+               progress_wheel();
             }
 		   }		
 	   }
 	} 
 			
-	fesa_set(REG_CMD, cmd ^ fesa_get(REG_CMD));	//leave only new changes in the command register
+	
 
    return msgs_sent_this_time; 
 
@@ -548,8 +618,9 @@ uint8_t acc_cycle( uintptr_t* tx_ctrl, uint32_t* tx_buffer)
 
 void init_fesa()
 {
-   TRACE_DEV("Entering init fese\n");
-   TRACE_DEV("fesa @ %x\n", fesa_if);
+   TRACE_DEV("fesaIFf @ %x\n", fesa_if);
+
+uintptr_t offset = ((((uintptr_t)((void*)_endshared))-((uintptr_t)((void*)_startshared))+4)/2);
 
    fesa_set(REG_MEMPAGE, 0);
 
@@ -561,15 +632,32 @@ void init_fesa()
 	fesa_set(REG_CYC_MSG_SENT, 	0x00000000); 
 
 
-   uint64_t start = get_current_time() + 500000000;
+   uint64_t start, tmp1, tmp2, tmp3;
+   start = get_current_time();
+   
+   TRACE_DEV("sec ");  crappy_printu64(SECOND); TRACE_DEV("\n");  
+      
+   //set cycle start to whole seconds (PPS) plus five seconds time
+   tmp1 = start % SECOND;
+   tmp2 = SECOND - tmp1;
+   tmp3 = start + tmp2;  
+   TRACE_DEV("now     ");  crappy_printu64(start); TRACE_DEV("\n"); 
+   TRACE_DEV("mod sec "); crappy_printu64(tmp1); TRACE_DEV("\n");
+   TRACE_DEV("rem     "); crappy_printu64(tmp2); TRACE_DEV("\n");
+   TRACE_DEV("nextsec "); crappy_printu64(tmp3); TRACE_DEV("\n"); 
+  
+   start = tmp3 + 5*SECOND;
+   TRACE_DEV("start   ");  crappy_printu64(start); TRACE_DEV("\n");
+
 
 	fesa_set(REG_CYC_EXEC_TIME_HI,		 (uint32_t)(start>>32)); //
-	fesa_set(REG_CYC_EXEC_TIME_LO,	(uint32_t)start); // start @ 1s 
+	fesa_set(REG_CYC_EXEC_TIME_LO,	(uint32_t)start); 
 	fesa_set(REG_CYC_PERIOD_HI,		 0); // 
-	fesa_set(REG_CYC_PERIOD_LO,	 250000000); // period 0.5s 
+	fesa_set(REG_CYC_PERIOD_LO,	 SECOND); // period 0.25s 
 	fesa_set(REG_CYC_REP,			-1); // 20x
 
-
+   TRACE_DEV("Cyc Exec %x%x\n", 	fesa_get(REG_CYC_EXEC_TIME_HI), fesa_get(REG_CYC_EXEC_TIME_LO));
+   TRACE_DEV("Cyc ECA  %x%x\n", 	fesa_get(REG_CYC_EXEC_TIME_HI)>>3, fesa_get(REG_CYC_EXEC_TIME_LO)>>3);
 	//msg 1
 	fesa_set(ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_CMD,		  	0);	
 	fesa_set(ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_CNT,		   	0x00000000);	
@@ -618,58 +706,58 @@ void init_fesa()
 	fesa_set(ADR_BASE_MSGS + 3*ADR_OFFS_NMSG + REG_MSG_ID_LO, 	 	      0x45670003);	
 	fesa_set(ADR_BASE_MSGS + 3*ADR_OFFS_NMSG + REG_MSG_PARAM, 	 	      0xDEADBEE2);		
    
-   fesa_set(REG_STAT, STAT_CYC_ACTIVE | 0x0F); //first 4 msg slots
+   fesa_set(REG_STAT, STAT_CYC_ACTIVE); //first 4 msg slots
    
 //page B
 
       //cyc registers
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_T_TRANSMIT, 	    200000); //200us transmit time
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_T_MARGIN, 	      5000); //5us margin
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_CNT, 		0x00000000); 
-	fesa_set(ADR_OFFS_PAGE_B + REG_NUM_MSGS, 		0x00000001); // 5 msgs
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_MSG_SENT, 	0x00000000); 
+	fesa_set(offset + REG_CYC_T_TRANSMIT, 	    200000); //200us transmit time
+	fesa_set(offset + REG_CYC_T_MARGIN, 	   5000000); //5ms margin
+	fesa_set(offset + REG_CYC_CNT, 		0x00000000); 
+	fesa_set(offset + REG_NUM_MSGS, 		0x00000001); // 5 msgs
+	fesa_set(offset + REG_CYC_MSG_SENT, 	0x00000000); 
 
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_EXEC_TIME_HI,		 0); //
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_EXEC_TIME_LO,	50); // start @ 50ns 
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_PERIOD_HI,		 0); // 
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_PERIOD_LO,	 100000); // period 100us 
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_REP,			2); // 20x
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_EXEC_TIME_HI,		 0); //
-	fesa_set(ADR_OFFS_PAGE_B + REG_CYC_EXEC_TIME_LO,	1500000000); // exec @ 2s
+
+	fesa_set(offset + REG_CYC_PERIOD_HI,		 0); // 
+	fesa_set(offset + REG_CYC_PERIOD_LO,	 SECOND/2); // period 100us 
+	fesa_set(offset + REG_CYC_REP,			-1); // 20x
+	fesa_set(offset + REG_CYC_EXEC_TIME_HI,		 0); //
+	fesa_set(offset + REG_CYC_EXEC_TIME_LO,	1500000000); // exec @ 2s
 
 	//msg 1
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_CMD,		  	0);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_CNT,		   	0x00000000);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_OFFS_TIME_HI,	         0);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_OFFS_TIME_LO,           300);	// 80ns
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_CMD,		  	0);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_CNT,		   	0x00000000);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_OFFS_TIME_HI,	         0);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_OFFS_TIME_LO,           300000);	// 80ns
 
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_EXEC_TIME_HI,	0x00000000);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_EXEC_TIME_LO,   	0x00000000);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_ID_HI, 	 	0xAAAAAAAA);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_ID_LO, 	 	0x0000BBBB);	
-	fesa_set(ADR_OFFS_PAGE_B + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_PARAM, 	 	0xDEAD0000);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_EXEC_TIME_HI,	0x00000000);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_EXEC_TIME_LO,   	0x00000000);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_ID_HI, 	 	0xAAAAAAAA);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_ID_LO, 	 	0x0000BBBB);	
+	fesa_set(offset + ADR_BASE_MSGS + 0*ADR_OFFS_NMSG + REG_MSG_PARAM, 	 	0xDEAD0000);	
 
 
 
-   fesa_set(ADR_OFFS_PAGE_B + REG_STAT, STAT_CYC_ACTIVE | 0x01); //first msg slot
+   fesa_set(offset + REG_STAT, 0); //first msg slot
 
-   TRACE_DEV("stichprobe: %x\n", fesa_get(REG_MEMPAGE));
 
 }
+
 
 
    
 
 int main(void)
 {
-   uint32_t fesa_buf[200];
+  // uint32_t fesa_buf[200];
    uint32_t tx_buf[2];	
    uint32_t tx_c[2];
    uint8_t finit = 1;	
-	
+	uint8_t cycle = 0;
+
    tx_buffer   = &tx_buf[0];
    tx_ctrl   = &tx_c[0];
-   fesa_if = &fesa_buf[0];
+   // fesa_if = &fesa_buf[0];
    
    uint64_t t_past, t_now; 
 
@@ -717,27 +805,28 @@ int main(void)
 				spll_init(SPLL_MODE_FREE_RUNNING_MASTER, 0, 1);
 			break;
 		}
-       uint32_t cmp1 = get_cycle_count();
+       
       ui_update();	
 		wrc_ptp_update();
 		spll_update_aux_clocks();
 		check_stack();
 
-      if(!needIP && !gerror) 
+      if(!needIP) 
       {
-        //gerror = 1;
-         
-         if(finit) {   init_fesa(); finit=0;}
-        
-
-        // TRACE_DEV("Delta2 %d\n", (uint32_t)(t_now-t_past-7000) );       
-  
-
      
- acc_cycle(tx_ctrl, tx_buffer);
-  uint32_t cmp2 = get_cycle_count();
-        //TRACE_DEV("cc %d cc2 %d d_cc %d\n", cmp1, cmp2, cmp2-cmp1); 
+
+
  
+
+            
+         if(finit && (strcmp ("TRACK_PHASE", cur_servo_state.slave_servo_state) == 0) ) {   
+                  init_fesa(); 
+                  finit=0; 
+                  
+         } //else { TRACE_DEV("%s %d\n", cur_servo_state.slave_servo_state, strcmp ("TRACK_PHASE", cur_servo_state.slave_servo_state) ); }
+
+      
+         if(!finit) acc_cycle(tx_ctrl, tx_buffer);
           
       }
 

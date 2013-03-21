@@ -31,8 +31,8 @@ obj-y += softpll/softpll_ng.o
 
 
 # our linker script is preprocessed, so have a rule here
-%.ld: %.ld.S $(AUTOCONF)
-	$(CC) -include $(AUTOCONF) -E -P $*.ld.S -o $@
+#%.ld: %.ld.S $(AUTOCONF)
+#	$(CC) -include $(AUTOCONF) -E -P $*.ld.S -o $@
 
 
 cflags-y = 	-ffreestanding -include $(AUTOCONF) -Iinclude -I. -Isoftpll

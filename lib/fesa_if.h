@@ -3,8 +3,9 @@
 
 extern volatile unsigned int* fesa_if;
 
+
 //from here on we have a two page layout mem
-#define ADR_OFFS_PAGE_B       0x00000200                 //mem page B offset 
+//#define ADR_OFFS_PAGE_B       0x00000200                 //mem page B offset 
 
 //control & status registers
 
@@ -54,18 +55,16 @@ extern volatile unsigned int* fesa_if;
 
 //masks & constants
 #define CMD_CYC_START         0x01000000	//Start timing msg program
-#define CMD_CYC_STOP          0x02000000	//Stop timing msg program safely
-#define CMD_CYC_STOP_I        0x04000000	//Stop timing msg program immediately
-#define CMD_CYC_RST           0x08000000	//Rst this CPU
-#define CMD_CYC_PAGESWAP      0x10000000	//Use mempage A/B
+#define CMD_DBG               0x02000000	//Start time will be ignored, begin now
+#define CMD_CYC_STOP          0x04000000	//Stop timing msg program safely
+#define CMD_CYC_STOP_I        0x08000000	//Stop timing msg program immediately
+#define CMD_CYC_RST           0x10000000	//Rst this CPU
+#define CMD_CYC_PAGESWAP      0x20000000	//Use mempage A/B
 
-#define CMD_MSG_USE           0x20000000	//Start this msg feed
-#define CMD_MSG_CLR           0x40000000	//Stop this msg feed
-#define CMD_MSG_CLR_CNT       0x80000000	//rst msg counter
 
-#define STAT_CYC_ACTIVE       0x10000000	//shows cycle is active/inactive
-#define STAT_CYC_MEMPAGE_B    0x20000000	//using mem page A when 0, B when 1
-#define STAT_CYC_RUNNING      0x40000000	//shows if cycle is currently running/idle
+#define STAT_DBG              0x10000000	//shows cycle is active/inactive
+#define STAT_CYC_ACTIVE       0x20000000	//shows cycle is active/inactive
+#define STAT_CYC_MEMPAGE_B    0x40000000	//using mem page A when 0, B when 1
 #define STAT_CYC_WAITING      0x80000000	//shows if cycle is waiting for condition
 #define STAT_MSGS             0x00FFFFFF	//shows use status of all msgs  
 
