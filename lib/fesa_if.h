@@ -12,8 +12,8 @@ extern volatile unsigned int* fesa_if;
 
 //from here on, it depends on the active mempage !!!
 #define ADR_PAGE              ADR_BASE+12
-#define REG_STAT			        ADR_PAGE                    //Shows status of all msg channels
-#define REG_CYC_CNT           (REG_STAT+4)                //counter how often the cycle was executed already
+#define REG_CYC_STAT			    ADR_PAGE                    //Shows status of all msg channels
+#define REG_CYC_CNT           (REG_CYC_STAT+4)                //counter how often the cycle was executed already
 #define REG_CYC_MSG_SENT      (REG_CYC_CNT+4)             //
 
 #define REG_NUM_MSGS          (REG_CYC_MSG_SENT+4)        //Number of msgs used in this cycle
@@ -49,19 +49,21 @@ extern volatile unsigned int* fesa_if;
 #define ADR_OFFS_NMSG         (END_MSG-REG_MSG_CMD+4)     //address offset for n-th msg 
 
 //masks & constants
+#define CMD_RST           		0x10000000	//Reset FTM status and counters
+#define CMD_PAGESWAP      		0x20000000	//Use mempage A/B
+
 #define CMD_CYC_START         0x01000000	//Start timing msg program
-#define CMD_DBG               0x02000000	//Start time will be ignored, begin now
+#define CMD_CYC_DBG           0x02000000	//Run Cycle in  debug mode (start time will be corrected if in the past, no error detection)
 #define CMD_CYC_STOP          0x04000000	//Stop timing msg program safely
 #define CMD_CYC_STOP_I        0x08000000	//Stop timing msg program immediately
-#define CMD_CYC_RST           0x10000000	//Rst this CPU
-#define CMD_CYC_PAGESWAP      0x20000000	//Use mempage A/B
 
 
-#define STAT_DBG              0x10000000	//shows cycle is active/inactive
+#define STAT_CYC_ERROR      	0x08000000	//error occured during cycle execution
+#define STAT_CYC_DBG          0x10000000	//shows cycle debug mode is active/inactive
 #define STAT_CYC_ACTIVE       0x20000000	//shows cycle is active/inactive
 #define STAT_CYC_MEMPAGE_B    0x40000000	//using mem page A when 0, B when 1
 #define STAT_CYC_WAITING      0x80000000	//shows if cycle is waiting for condition
-#define STAT_MSGS             0x00FFFFFF	//shows use status of all msgs  
+
 
 
 
